@@ -1,6 +1,6 @@
 # Build Your Own WebServer in c#
 
-This is sample webserver written in c# to understand how a webserver behave.
+This is a sample web server written in c# to understand how a web server behaves.
 
 Steps 
 - netsh http add urlacl url=http://+:80/ user=EVERYONE listen=yes
