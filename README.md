@@ -1,4 +1,4 @@
-# Build Your Own WebServer c#
+# Build Your Own WebServer in c#
 
 This is sample webserver written in c# to understand how a webserver behave.
 
