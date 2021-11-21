@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using BYO.WebServer.Helpers;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
@@ -53,7 +54,12 @@ public static class Server
         HttpListenerContext context = await listener.GetContextAsync();
         sem.Release();
 
-        Log(context.Request);
+        HttpRequestProcessor.ProcessRequest(context.Request);
+
+
+
+
+
 
         //Do someting
         string response = @"<html><head><meta http-equiv='content-type' content='text/html; charset=utf-8'/>
@@ -72,8 +78,5 @@ public static class Server
         Start(listener);
     }
 
-    public static void Log(HttpListenerRequest request)
-    {
-        Console.WriteLine($"{request.RemoteEndPoint} :: {request.HttpMethod} :: {request?.Url?.AbsoluteUri}");
-    }
+    
 }
