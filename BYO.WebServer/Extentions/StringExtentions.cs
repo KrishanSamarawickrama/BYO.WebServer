@@ -8,7 +8,7 @@ namespace BYO.WebServer
 {
     public static class StringExtentions
     {
-        public static string LeftOf(this string src, char c)
+        public static string LeftOf(this string src, string c)
         {
             string ret = src;
             int idx = src.IndexOf(c);
@@ -39,13 +39,13 @@ namespace BYO.WebServer
             return ret;
         }
 
-        public static string RightOf(this string src, char c)
+        public static string RightOf(this string src, string c)
         {
             string ret = String.Empty;
             int idx = src.IndexOf(c);
             if (idx != -1)
             {
-                ret = src.Substring(idx + 1);
+                ret = src.Substring(idx + c.Length);
             }
             return ret;
         }

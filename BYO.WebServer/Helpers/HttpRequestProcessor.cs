@@ -10,22 +10,21 @@ namespace BYO.WebServer.Helpers
 {
     internal static class HttpRequestProcessor
     {
-        public static void ProcessRequest(HttpListenerRequest request)
+        public static ResponsePacket ProcessRequest(HttpListenerRequest request)
         {
             Logger.LogRequest(request);
 
-            string path = request?.RawUrl?.LeftOf('?') ?? string.Empty;
+            string path = request?.RawUrl?.LeftOf("?") ?? string.Empty;
             string verb = request?.HttpMethod ?? string.Empty;
-            string parms = request?.RawUrl?.RightOf('?') ?? string.Empty;
+            string parms = request?.RawUrl?.RightOf("?") ?? string.Empty;
 
             Dictionary<string, string> kvParams = GetKeyValues(parms);
 
             Router router = new();
             router.WebsitePath = GetWebsitePath();
-            router.Route(verb, path, kvParams);
-            
+            return router.Route(verb, path, kvParams); 
         }
-
+        
         private static Dictionary<string, string> GetKeyValues(string data, Dictionary<string, string>? kv = null)
         {
             if (kv == null) kv = new();
@@ -33,7 +32,7 @@ namespace BYO.WebServer.Helpers
 
             foreach (var keyVal in data.Split('&'))
             {
-                kv[keyVal.LeftOf('=')] = keyVal.RightOf('=');
+                kv[keyVal.LeftOf("=")] = keyVal.RightOf("=");
             }
 
             return kv;
@@ -43,7 +42,7 @@ namespace BYO.WebServer.Helpers
         {
             // Path of our exe.
             string websitePath = Assembly.GetExecutingAssembly().Location;
-            websitePath = websitePath.LeftOfRightmostOf('\\').LeftOfRightmostOf('\\').LeftOfRightmostOf('\\') + "\\Website";
+            websitePath = websitePath.LeftOfRightmostOf('\\').LeftOfRightmostOf('\\').LeftOfRightmostOf('\\').LeftOfRightmostOf('\\') + "\\Website";
 
             return websitePath;
         }

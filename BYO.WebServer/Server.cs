@@ -54,22 +54,24 @@ public static class Server
         HttpListenerContext context = await listener.GetContextAsync();
         sem.Release();
 
-        HttpRequestProcessor.ProcessRequest(context.Request);
+        var resp = HttpRequestProcessor.ProcessRequest(context.Request);
 
-
-
-
-
-
-        //Do someting
-        string response = @"<html><head><meta http-equiv='content-type' content='text/html; charset=utf-8'/>
-      </ head > Hello Browser! </ html > ";
-        byte[] encoded = Encoding.UTF8.GetBytes(response);
-        context.Response.ContentLength64 = encoded.Length;
-        context.Response.OutputStream.Write(encoded, 0, encoded.Length);
-        context.Response.OutputStream.Close();
-
+        Respond(context.Response, resp);
     }
+
+    private static void Respond(HttpListenerResponse response, ResponsePacket resp)
+    {
+        if (resp.Data != null)
+        {
+            response.ContentType = resp.ContentType;
+            response.ContentLength64 = resp.Data.Length;
+            response.OutputStream.Write(resp.Data, 0, resp.Data.Length);
+            response.ContentEncoding = resp.Encoding;
+            response.StatusCode = (int)HttpStatusCode.OK; 
+        }
+        response.OutputStream.Close();
+    }
+
 
     public static void Start()
     {
