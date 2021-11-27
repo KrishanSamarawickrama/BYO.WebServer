@@ -1,23 +1,19 @@
 ﻿using BYO.WebServer.Helpers;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace BYO.WebServer
 {
     public class Router
     {
-        public string WebsitePath { get; set; }
+        public string WebsitePath { get; set; } = "/";
 
-        private Dictionary<string, ExtensionInfo> extFolderMap;
+        private readonly Dictionary<string, ExtensionInfo> extFolderMap;
 
         public Router()
         {
             extFolderMap = new()
             {
-                { "ico" , new() { ContentType = "image/ico", Loader = ImageLoader } },
+                { "ico", new() { ContentType = "image/ico", Loader = ImageLoader } },
                 { "png", new() { ContentType = "image/png", Loader = ImageLoader } },
                 { "jpg", new() { ContentType = "image/jpg", Loader = ImageLoader } },
                 { "gif", new() { ContentType = "image/gif", Loader = ImageLoader } },
@@ -26,19 +22,22 @@ namespace BYO.WebServer
                 { "css", new() { ContentType = "text/css", Loader = FileLoader } },
                 { "js", new() { ContentType = "text/js", Loader = FileLoader } },
                 { "", new() { ContentType = "text/html", Loader = PageLoader } },
-
             };
         }
 
         internal ResponsePacket Route(string verb, string path, Dictionary<string, string>? kvParams)
         {
-            ResponsePacket output = new();
+            ResponsePacket output;
 
             string ext = path.RightOfRightmostOf('.');
             if (extFolderMap.TryGetValue(ext, out ExtensionInfo? extInfo))
             {
-                string fullPath = (path.Length > 1) ? WebsitePath + path.Replace('/','\\') : WebsitePath;
+                string fullPath = (path.Length > 1) ? WebsitePath + path.Replace('/', '\\') : WebsitePath;
                 output = extInfo.Loader(fullPath, ext, extInfo);
+            }
+            else
+            {
+                output = new() { Error = ServerError.UnknownTypes };
             }
 
             return output;
@@ -55,9 +54,8 @@ namespace BYO.WebServer
                 if (string.IsNullOrEmpty(ext))
                     fullPath = fullPath + ".html";
 
-                var f = fullPath.RightOf(WebsitePath);
                 fullPath = WebsitePath + "\\pages" + fullPath.RightOf(WebsitePath);
-                output = FileLoader(fullPath,ext, extInfo);
+                output = FileLoader(fullPath, ext, extInfo);
             }
 
             return output;
@@ -84,6 +82,5 @@ namespace BYO.WebServer
                 Encoding = Encoding.UTF8
             };
         }
-
     }
 }

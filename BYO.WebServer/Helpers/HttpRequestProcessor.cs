@@ -1,10 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net;
+﻿using System.Net;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace BYO.WebServer.Helpers
 {
@@ -20,15 +15,17 @@ namespace BYO.WebServer.Helpers
 
             Dictionary<string, string> kvParams = GetKeyValues(parms);
 
-            Router router = new();
-            router.WebsitePath = GetWebsitePath();
-            return router.Route(verb, path, kvParams); 
+            Router router = new()
+            {
+                WebsitePath = GetWebsitePath()
+            };
+            return router.Route(verb, path, kvParams);
         }
-        
+
         private static Dictionary<string, string> GetKeyValues(string data, Dictionary<string, string>? kv = null)
         {
             if (kv == null) kv = new();
-            if(string.IsNullOrEmpty(data) || data.Length <= 0) return kv;
+            if (string.IsNullOrEmpty(data) || data.Length <= 0) return kv;
 
             foreach (var keyVal in data.Split('&'))
             {
@@ -40,12 +37,10 @@ namespace BYO.WebServer.Helpers
 
         public static string GetWebsitePath()
         {
-            // Path of our exe.
             string websitePath = Assembly.GetExecutingAssembly().Location;
             websitePath = websitePath.LeftOfRightmostOf('\\').LeftOfRightmostOf('\\').LeftOfRightmostOf('\\').LeftOfRightmostOf('\\') + "\\Website";
 
             return websitePath;
         }
-
     }
 }
