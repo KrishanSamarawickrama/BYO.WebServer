@@ -5,7 +5,7 @@ namespace BYO.WebServer.Helpers
 {
     internal static class HttpRequestProcessor
     {
-        public static ResponsePacket ProcessRequest(HttpListenerRequest request)
+        public static ResponsePacket ProcessRequest(Router router, HttpListenerRequest request)
         {
             Logger.LogRequest(request);
 
@@ -15,10 +15,6 @@ namespace BYO.WebServer.Helpers
 
             Dictionary<string, string> kvParams = GetKeyValues(parms);
 
-            Router router = new()
-            {
-                WebsitePath = GetWebsitePath()
-            };
             return router.Route(verb, path, kvParams);
         }
 
@@ -35,12 +31,6 @@ namespace BYO.WebServer.Helpers
             return kv;
         }
 
-        public static string GetWebsitePath()
-        {
-            string websitePath = Assembly.GetExecutingAssembly().Location;
-            websitePath = websitePath.LeftOfRightmostOf('\\').LeftOfRightmostOf('\\').LeftOfRightmostOf('\\').LeftOfRightmostOf('\\') + "\\Website";
-
-            return websitePath;
-        }
+        
     }
 }

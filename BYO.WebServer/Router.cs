@@ -1,4 +1,5 @@
 ﻿using BYO.WebServer.Helpers;
+using System.Reflection;
 using System.Text;
 
 namespace BYO.WebServer
@@ -11,6 +12,7 @@ namespace BYO.WebServer
 
         public Router()
         {
+            WebsitePath = GetWebsitePath();
             extFolderMap = new()
             {
                 { "ico", new() { ContentType = "image/ico", Loader = ImageLoader } },
@@ -64,13 +66,12 @@ namespace BYO.WebServer
         internal ResponsePacket ImageLoader(string fullPath, string ext, ExtensionInfo extInfo)
         {
             using FileStream fileStream = new(fullPath, FileMode.Open, FileAccess.Read);
-            using BinaryReader reader = new BinaryReader(fileStream);
-            var output = new ResponsePacket
+            using BinaryReader reader = new(fileStream);
+            return new ResponsePacket
             {
                 Data = reader.ReadBytes((int)fileStream.Length),
                 ContentType = extInfo.ContentType
             };
-            return output;
         }
 
         internal ResponsePacket FileLoader(string fullPath, string ext, ExtensionInfo extInfo)
@@ -81,6 +82,14 @@ namespace BYO.WebServer
                 Data = Encoding.UTF8.GetBytes(File.ReadAllText(fullPath)),
                 Encoding = Encoding.UTF8
             };
+        }
+
+        internal static string GetWebsitePath()
+        {
+            string websitePath = Assembly.GetExecutingAssembly().Location;
+            websitePath = websitePath.LeftOfRightmostOf('\\').LeftOfRightmostOf('\\').LeftOfRightmostOf('\\').LeftOfRightmostOf('\\') + "\\Website";
+
+            return websitePath;
         }
     }
 }

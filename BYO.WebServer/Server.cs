@@ -6,9 +6,10 @@ namespace BYO.WebServer
 {
     public static class Server
     {
-        //private static HttpListener listener;
+        public static Router router;
+        public static Func<ServerError, string> OnError { get; set; }
 
-        public readonly static int maxSimultaneousConnections = 20;
+        private static readonly int maxSimultaneousConnections = 20;
         private static Semaphore sem = new(maxSimultaneousConnections, maxSimultaneousConnections);
 
         private static List<IPAddress> GetLocalHostIPs()
@@ -51,29 +52,91 @@ namespace BYO.WebServer
 
         private static async void StartConnectionListener(HttpListener listener)
         {
+            ResponsePacket response;
+
             HttpListenerContext context = await listener.GetContextAsync();
             sem.Release();
 
-            var resp = HttpRequestProcessor.ProcessRequest(context.Request);
+            try
+            {                
+                response = HttpRequestProcessor.ProcessRequest(router, context.Request);
 
-            Respond(context.Response, resp);
+                if (response.Error != ServerError.Ok)
+                {
+                    response.Redirect = OnError(response.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                ConsoleHelper.ConsoleWriteException(ex);
+                response = new ResponsePacket() { Redirect = OnError(ServerError.ServerError) };
+            }
+
+            Respond(context.Request, context.Response, response);
+
         }
 
-        private static void Respond(HttpListenerResponse response, ResponsePacket resp)
+        private static void Respond(HttpListenerRequest request, HttpListenerResponse response, ResponsePacket resp)
         {
-            response.ContentType = resp.ContentType;
-            response.ContentLength64 = resp.Data.Length;
-            response.OutputStream.Write(resp.Data, 0, resp.Data.Length);
-            response.ContentEncoding = resp.Encoding;
-            response.StatusCode = (int)HttpStatusCode.OK;
+            if (string.IsNullOrEmpty(resp.Redirect))
+            {
+                response.ContentType = resp.ContentType;
+                response.ContentLength64 = resp.Data.Length;
+                response.OutputStream.Write(resp.Data, 0, resp.Data.Length);
+                response.ContentEncoding = resp.Encoding;
+                response.StatusCode = (int)HttpStatusCode.OK;
+            }
+            else
+            {
+                response.StatusCode = (int)HttpStatusCode.Redirect;
+                response.Redirect($"http://{request.UserHostAddress}{resp.Redirect}");
+            }
+
             response.OutputStream.Close();
         }
 
         public static void Start()
         {
+            OnError = ErrorHandler;
+            router = new Router();
+
             var localIPs = GetLocalHostIPs();
             var listener = InitializeListener(localIPs);
             Start(listener);
+        }
+
+        public static string ErrorHandler(ServerError error)
+        {
+            string output = string.Empty;
+
+            switch (error)
+            {
+                case ServerError.ExpiredSession:
+                    output = "/error-pages/expired-session.html";
+                    break;
+
+                case ServerError.NotAuthorized:
+                    output = "/error-pages/not-authorized.html";
+                    break;
+
+                case ServerError.FileNotFound:
+                    output = "/error-pages/file-not-found.html";
+                    break;
+
+                case ServerError.PageNotFound:
+                    output = "/error-pages/page-not-found.html";
+                    break;
+
+                case ServerError.ServerError:
+                    output = "/error-pages/server-error.html";
+                    break;
+
+                case ServerError.UnknownTypes:
+                    output = "/error-pages/unknown-types.html";
+                    break;
+            }
+
+            return output;
         }
     }
 }
