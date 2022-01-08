@@ -1,16 +1,26 @@
 ﻿using BYO.WebServer.Helpers;
 using System.Net;
 using System.Net.Sockets;
+using BYO.WebServer.Constants;
+using BYO.WebServer.Models;
 
 namespace BYO.WebServer
 {
     public static class Server
     {
-        public static Router router;
-        public static Func<ServerError, string> OnError { get; set; }
-
+        private static readonly Router Router = new();
+        private static Func<ServerError, string> OnError { get; set; } = ErrorHandler;
         private static readonly int maxSimultaneousConnections = 20;
-        private static Semaphore sem = new(maxSimultaneousConnections, maxSimultaneousConnections);
+        private static readonly Semaphore Sem = new(maxSimultaneousConnections, maxSimultaneousConnections);
+
+        public static void Start()
+        {
+            Server.AddRoute(new Route(Verbs.POST, "/demo/redirect", RedirectMe));
+            
+            var localIPs = GetLocalHostIPs();
+            var listener = InitializeListener(localIPs);
+            Start(listener);
+        }
 
         private static List<IPAddress> GetLocalHostIPs()
         {
@@ -26,11 +36,11 @@ namespace BYO.WebServer
             listener.Prefixes.Add("http://localhost/");
             listener.Prefixes.Add("http://+:80/");
 
-            localHostIps.ForEach(ip =>
-            {
-                Console.WriteLine($"Listening on IP http://{ip}/");
-                listener.Prefixes.Add($"http://{ip}/");
-            });
+            // localHostIps.ForEach(ip =>
+            // {
+            //     Console.WriteLine($"Listening on IP http://{ip}/");
+            //     listener.Prefixes.Add($"http://{ip}/");
+            // });
 
             return listener;
         }
@@ -45,7 +55,7 @@ namespace BYO.WebServer
         {
             while (true)
             {
-                sem.WaitOne();
+                Sem.WaitOne();
                 StartConnectionListener(listener);
             }
         }
@@ -55,11 +65,11 @@ namespace BYO.WebServer
             ResponsePacket response;
 
             HttpListenerContext context = await listener.GetContextAsync();
-            sem.Release();
+            Sem.Release();
 
             try
             {                
-                response = HttpRequestProcessor.ProcessRequest(router, context.Request);
+                response = HttpRequestProcessor.ProcessRequest(Router, context.Request);
 
                 if (response.Error != ServerError.Ok)
                 {
@@ -78,7 +88,7 @@ namespace BYO.WebServer
 
         private static void Respond(HttpListenerRequest request, HttpListenerResponse response, ResponsePacket resp)
         {
-            if (string.IsNullOrEmpty(resp.Redirect))
+            if (string.IsNullOrEmpty(resp.Redirect) && resp.Data != null)
             {
                 response.ContentType = resp.ContentType;
                 response.ContentLength64 = resp.Data.Length;
@@ -94,18 +104,18 @@ namespace BYO.WebServer
 
             response.OutputStream.Close();
         }
-
-        public static void Start()
+        
+        private static void AddRoute(Route route)
         {
-            OnError = ErrorHandler;
-            router = new Router();
-
-            var localIPs = GetLocalHostIPs();
-            var listener = InitializeListener(localIPs);
-            Start(listener);
+            Router.Routes.Add(route);
         }
-
-        public static string ErrorHandler(ServerError error)
+        
+        private static string RedirectMe(Dictionary<string, string>? parms)
+        {
+            return "/demo/clicked";
+        }
+        
+        private static string ErrorHandler(ServerError error)
         {
             string output = string.Empty;
 

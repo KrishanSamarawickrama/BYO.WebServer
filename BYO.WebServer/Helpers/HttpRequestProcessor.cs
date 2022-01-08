@@ -12,8 +12,15 @@ namespace BYO.WebServer.Helpers
             string path = request?.RawUrl?.LeftOf("?") ?? string.Empty;
             string verb = request?.HttpMethod ?? string.Empty;
             string parms = request?.RawUrl?.RightOf("?") ?? string.Empty;
+            string data = string.Empty;
+            if (request?.InputStream != null)
+            {
+                data = new StreamReader(request.InputStream, request.ContentEncoding).ReadToEnd();
+            }
 
             Dictionary<string, string> kvParams = GetKeyValues(parms);
+            GetKeyValues(data, kvParams);
+            Logger.LogParams(kvParams);
 
             return router.Route(verb, path, kvParams);
         }
