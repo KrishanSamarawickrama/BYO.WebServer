@@ -1,21 +1,29 @@
 ﻿using System.Net;
 using System.Reflection;
+using BYO.WebServer.Models;
 
 namespace BYO.WebServer.Helpers
 {
     internal static class HttpRequestProcessor
     {
-        public static ResponsePacket ProcessRequest(Router router, HttpListenerRequest request)
+        public static ResponsePacket ProcessRequest(Router router, HttpListenerRequest request, Session session)
         {
             Logger.LogRequest(request);
 
             string path = request?.RawUrl?.LeftOf("?") ?? string.Empty;
             string verb = request?.HttpMethod ?? string.Empty;
             string parms = request?.RawUrl?.RightOf("?") ?? string.Empty;
+            string data = string.Empty;
+            if (request?.InputStream != null)
+            {
+                data = new StreamReader(request.InputStream, request.ContentEncoding).ReadToEnd();
+            }
 
             Dictionary<string, string> kvParams = GetKeyValues(parms);
+            GetKeyValues(data, kvParams);
+            Logger.LogParams(kvParams);
 
-            return router.Route(verb, path, kvParams);
+            return router.Route(session,verb, path, kvParams);
         }
 
         private static Dictionary<string, string> GetKeyValues(string data, Dictionary<string, string>? kv = null)

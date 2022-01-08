@@ -1,16 +1,43 @@
 ﻿using BYO.WebServer.Helpers;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
+using BYO.WebServer.Constants;
+using BYO.WebServer.Models;
 
 namespace BYO.WebServer
 {
     public static class Server
     {
-        public static Router router;
-        public static Func<ServerError, string> OnError { get; set; }
+        
+        private static readonly Router Router = new();
+        private static readonly SessionManager SessionManager = new();
+        private static Action<Session, HttpListenerContext>? _onRequest;
+        public static Func<ServerError, ResponsePacket> OnError { get; set; } = ErrorHandler;
+        
+        internal const int ExpirationTimeSeconds = 3600;
+        private const int MaxSimultaneousConnections = 20;
+        private static readonly Semaphore Sem = new(MaxSimultaneousConnections, MaxSimultaneousConnections);
 
-        private static readonly int maxSimultaneousConnections = 20;
-        private static Semaphore sem = new(maxSimultaneousConnections, maxSimultaneousConnections);
+        public static void Start()
+        {
+            // Never expire, always authorize
+            Server._onRequest = (session, context) =>
+            {
+                session.Authorized = true;
+                session.UpdateLastConnectionTime();
+            };
+            
+            Server.AddRoute(new Route(Verbs.POST, "/demo/redirect", new AnonymousRouteHandler(RedirectMe)));
+            Server.AddRoute(new Route(Verbs.POST, "/demo/redirect", new AuthenticatedRouteHandler(RedirectMe)));
+            Server.AddRoute(new Route(Verbs.POST, "/demo/redirect", new AuthenticatedExpirableRouteHandler(RedirectMe)));
+            Server.AddRoute(new Route(Verbs.PUT, "/demo/ajax", new AnonymousRouteHandler(AjaxResponder)));
+            Server.AddRoute(new Route(Verbs.GET, "/demo/ajax", new AnonymousRouteHandler(AjaxResponder)));
+
+            var localIPs = GetLocalHostIPs();
+            var listener = InitializeListener(localIPs);
+            Start(listener);
+        }
 
         private static List<IPAddress> GetLocalHostIPs()
         {
@@ -26,11 +53,11 @@ namespace BYO.WebServer
             listener.Prefixes.Add("http://localhost/");
             listener.Prefixes.Add("http://+:80/");
 
-            localHostIps.ForEach(ip =>
-            {
-                Console.WriteLine($"Listening on IP http://{ip}/");
-                listener.Prefixes.Add($"http://{ip}/");
-            });
+            // localHostIps.ForEach(ip =>
+            // {
+            //     Console.WriteLine($"Listening on IP http://{ip}/");
+            //     listener.Prefixes.Add($"http://{ip}/");
+            // });
 
             return listener;
         }
@@ -45,7 +72,7 @@ namespace BYO.WebServer
         {
             while (true)
             {
-                sem.WaitOne();
+                Sem.WaitOne();
                 StartConnectionListener(listener);
             }
         }
@@ -55,57 +82,74 @@ namespace BYO.WebServer
             ResponsePacket response;
 
             HttpListenerContext context = await listener.GetContextAsync();
-            sem.Release();
+            Sem.Release();
 
             try
-            {                
-                response = HttpRequestProcessor.ProcessRequest(router, context.Request);
+            {
+                Session session = SessionManager.GetSession(context.Request.RemoteEndPoint);
+                response = HttpRequestProcessor.ProcessRequest(Router, context.Request, session);
+                session.UpdateLastConnectionTime();
+                _onRequest?.Invoke(session, context);
 
                 if (response.Error != ServerError.Ok)
                 {
-                    response.Redirect = OnError(response.Error);
+                    response.Redirect = OnError(response.Error).Redirect;
                 }
             }
             catch (Exception ex)
             {
                 ConsoleHelper.ConsoleWriteException(ex);
-                response = new ResponsePacket() { Redirect = OnError(ServerError.ServerError) };
+                response = new ResponsePacket() {Redirect = OnError(ServerError.ServerError).Redirect};
             }
 
             Respond(context.Request, context.Response, response);
-
         }
 
         private static void Respond(HttpListenerRequest request, HttpListenerResponse response, ResponsePacket resp)
         {
-            if (string.IsNullOrEmpty(resp.Redirect))
+            if (string.IsNullOrEmpty(resp.Redirect) && resp.Data != null)
             {
                 response.ContentType = resp.ContentType;
                 response.ContentLength64 = resp.Data.Length;
                 response.OutputStream.Write(resp.Data, 0, resp.Data.Length);
                 response.ContentEncoding = resp.Encoding;
-                response.StatusCode = (int)HttpStatusCode.OK;
+                response.StatusCode = (int) HttpStatusCode.OK;
             }
             else
             {
-                response.StatusCode = (int)HttpStatusCode.Redirect;
+                response.StatusCode = (int) HttpStatusCode.Redirect;
                 response.Redirect($"http://{request.UserHostAddress}{resp.Redirect}");
             }
 
             response.OutputStream.Close();
         }
 
-        public static void Start()
+        private static void AddRoute(Route route)
         {
-            OnError = ErrorHandler;
-            router = new Router();
-
-            var localIPs = GetLocalHostIPs();
-            var listener = InitializeListener(localIPs);
-            Start(listener);
+            Router.Routes.Add(route);
+        }
+        
+        public static ResponsePacket Redirect(string url, string? parm = null)
+        {
+            ResponsePacket ret = new ResponsePacket() { Redirect = url };
+            ret.Redirect = (parm != null) ? ret.Redirect += "?" + parm : ret.Redirect;
+            return ret;
         }
 
-        public static string ErrorHandler(ServerError error)
+        private static ResponsePacket RedirectMe(Session session, Dictionary<string, string>? parms)
+        {
+            return Server.Redirect("/demo/clicked");
+        }
+        
+        private static ResponsePacket AjaxResponder(Session session, Dictionary<string, string>? parms)
+        {
+            string data = "You said " + parms["number"];
+            ResponsePacket ret = new ResponsePacket() { Data = Encoding.UTF8.GetBytes(data), ContentType = "text" };
+
+            return ret;
+        }
+
+        private static ResponsePacket ErrorHandler(ServerError error)
         {
             string output = string.Empty;
 
@@ -136,7 +180,7 @@ namespace BYO.WebServer
                     break;
             }
 
-            return output;
+            return new ResponsePacket(){Redirect = output};
         }
     }
 }
