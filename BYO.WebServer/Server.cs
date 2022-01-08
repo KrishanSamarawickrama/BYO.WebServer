@@ -9,6 +9,7 @@ namespace BYO.WebServer
     public static class Server
     {
         private static readonly Router Router = new();
+        private static readonly SessionManager SessionManager = new();
         private static Func<ServerError, string> OnError { get; set; } = ErrorHandler;
         private static readonly int maxSimultaneousConnections = 20;
         private static readonly Semaphore Sem = new(maxSimultaneousConnections, maxSimultaneousConnections);
@@ -68,8 +69,10 @@ namespace BYO.WebServer
             Sem.Release();
 
             try
-            {                
+            {
+                Session session = SessionManager.GetSession(context.Request.RemoteEndPoint);
                 response = HttpRequestProcessor.ProcessRequest(Router, context.Request);
+                session.UpdateLastConnectionTime();
 
                 if (response.Error != ServerError.Ok)
                 {
