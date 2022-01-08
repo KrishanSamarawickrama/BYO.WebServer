@@ -30,27 +30,19 @@ namespace BYO.WebServer
 
         internal ResponsePacket Route(Session session, string verb, string path, Dictionary<string, string>? kvParams)
         {
-            ResponsePacket output;
+            ResponsePacket? output;
 
-            string ext = path.RightOfRightmostOf('.');
+            var ext = path.RightOfRightmostOf('.');
             verb = verb.ToLower();
             
             if (_extFolderMap.TryGetValue(ext, out ExtensionInfo? extInfo))
             {
-                string fullPath = (path.Length > 1) ? WebsitePath + path.Replace('/', '\\') : WebsitePath;
+                var fullPath = (path.Length > 1) ? WebsitePath + path.Replace('/', '\\') : WebsitePath;
 
                 var route = Routes.SingleOrDefault(x => x.Verb.ToLower() == verb && x.Path == path);
                 if (route != null)
                 {
-                    var redirect = route.Handler.Handle(session, kvParams);
-                    if (string.IsNullOrEmpty(redirect))
-                    {
-                        output = extInfo.Loader(fullPath, ext, extInfo);
-                    }
-                    else
-                    {
-                        output = new() {Redirect = redirect};
-                    }
+                    output = route.Handler.Handle(session, kvParams) ?? extInfo.Loader(fullPath, ext, extInfo);
                 }
                 else
                 {

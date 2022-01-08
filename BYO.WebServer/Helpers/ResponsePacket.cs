@@ -2,7 +2,7 @@
 
 namespace BYO.WebServer.Helpers
 {
-    internal class ResponsePacket
+    public class ResponsePacket
     {
         public string Redirect { get; set; } = string.Empty;
         public byte[]? Data { get; init; } 

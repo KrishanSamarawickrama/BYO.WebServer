@@ -1,6 +1,7 @@
 ﻿using BYO.WebServer.Helpers;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using BYO.WebServer.Constants;
 using BYO.WebServer.Models;
 
@@ -12,7 +13,7 @@ namespace BYO.WebServer
         private static readonly Router Router = new();
         private static readonly SessionManager SessionManager = new();
         private static Action<Session, HttpListenerContext>? _onRequest;
-        public static Func<ServerError, string> OnError { get; set; } = ErrorHandler;
+        public static Func<ServerError, ResponsePacket> OnError { get; set; } = ErrorHandler;
         
         internal const int ExpirationTimeSeconds = 3600;
         private const int MaxSimultaneousConnections = 20;
@@ -27,7 +28,11 @@ namespace BYO.WebServer
                 session.UpdateLastConnectionTime();
             };
             
+            Server.AddRoute(new Route(Verbs.POST, "/demo/redirect", new AnonymousRouteHandler(RedirectMe)));
+            Server.AddRoute(new Route(Verbs.POST, "/demo/redirect", new AuthenticatedRouteHandler(RedirectMe)));
             Server.AddRoute(new Route(Verbs.POST, "/demo/redirect", new AuthenticatedExpirableRouteHandler(RedirectMe)));
+            Server.AddRoute(new Route(Verbs.PUT, "/demo/ajax", new AnonymousRouteHandler(AjaxResponder)));
+            Server.AddRoute(new Route(Verbs.GET, "/demo/ajax", new AnonymousRouteHandler(AjaxResponder)));
 
             var localIPs = GetLocalHostIPs();
             var listener = InitializeListener(localIPs);
@@ -88,13 +93,13 @@ namespace BYO.WebServer
 
                 if (response.Error != ServerError.Ok)
                 {
-                    response.Redirect = OnError(response.Error);
+                    response.Redirect = OnError(response.Error).Redirect;
                 }
             }
             catch (Exception ex)
             {
                 ConsoleHelper.ConsoleWriteException(ex);
-                response = new ResponsePacket() {Redirect = OnError(ServerError.ServerError)};
+                response = new ResponsePacket() {Redirect = OnError(ServerError.ServerError).Redirect};
             }
 
             Respond(context.Request, context.Response, response);
@@ -123,13 +128,28 @@ namespace BYO.WebServer
         {
             Router.Routes.Add(route);
         }
-
-        private static string RedirectMe(Session session, Dictionary<string, string>? parms)
+        
+        public static ResponsePacket Redirect(string url, string? parm = null)
         {
-            return "/demo/clicked";
+            ResponsePacket ret = new ResponsePacket() { Redirect = url };
+            ret.Redirect = (parm != null) ? ret.Redirect += "?" + parm : ret.Redirect;
+            return ret;
         }
 
-        private static string ErrorHandler(ServerError error)
+        private static ResponsePacket RedirectMe(Session session, Dictionary<string, string>? parms)
+        {
+            return Server.Redirect("/demo/clicked");
+        }
+        
+        private static ResponsePacket AjaxResponder(Session session, Dictionary<string, string>? parms)
+        {
+            string data = "You said " + parms["number"];
+            ResponsePacket ret = new ResponsePacket() { Data = Encoding.UTF8.GetBytes(data), ContentType = "text" };
+
+            return ret;
+        }
+
+        private static ResponsePacket ErrorHandler(ServerError error)
         {
             string output = string.Empty;
 
@@ -160,7 +180,7 @@ namespace BYO.WebServer
                     break;
             }
 
-            return output;
+            return new ResponsePacket(){Redirect = output};
         }
     }
 }

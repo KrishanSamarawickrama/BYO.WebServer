@@ -1,15 +1,17 @@
-﻿namespace BYO.WebServer.Models;
+﻿using BYO.WebServer.Helpers;
+
+namespace BYO.WebServer.Models;
 
 public class AuthenticatedRouteHandler : RouteHandler
 {
-    public AuthenticatedRouteHandler(Func<Session, Dictionary<string, string>, string> handler)
+    public AuthenticatedRouteHandler(Func<Session, Dictionary<string, string>, ResponsePacket> handler)
         : base(handler)
     {
     }
 
-    public override string Handle(Session session, Dictionary<string, string> parms)
+    public override ResponsePacket Handle(Session session, Dictionary<string, string> parms)
     {
-        string ret;
+        ResponsePacket ret;
 
         if (session.Authorized)
         {
