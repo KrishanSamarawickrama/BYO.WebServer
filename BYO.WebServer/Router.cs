@@ -28,7 +28,7 @@ namespace BYO.WebServer
             };
         }
 
-        internal ResponsePacket Route(string verb, string path, Dictionary<string, string>? kvParams)
+        internal ResponsePacket Route(Session session, string verb, string path, Dictionary<string, string>? kvParams)
         {
             ResponsePacket output;
 
@@ -42,7 +42,7 @@ namespace BYO.WebServer
                 var route = Routes.SingleOrDefault(x => x.Verb.ToLower() == verb && x.Path == path);
                 if (route != null)
                 {
-                    string redirect = route.Action(kvParams);
+                    var redirect = route.Handler.Handle(session, kvParams);
                     if (string.IsNullOrEmpty(redirect))
                     {
                         output = extInfo.Loader(fullPath, ext, extInfo);
@@ -70,7 +70,7 @@ namespace BYO.WebServer
             ResponsePacket output;
 
             if (fullPath == WebsitePath)
-                output = Route("GET", "/index.html", null);
+                output = Route(new(),"GET", "/index.html", null);
             else
             {
                 if (string.IsNullOrEmpty(ext))

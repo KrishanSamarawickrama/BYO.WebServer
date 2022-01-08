@@ -1,4 +1,4 @@
-﻿namespace BYO.WebServer;
+﻿namespace BYO.WebServer.Models;
 
 public class Session
 {

@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using BYO.WebServer.Models;
 
 namespace BYO.WebServer;
 

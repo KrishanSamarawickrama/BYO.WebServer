@@ -8,16 +8,27 @@ namespace BYO.WebServer
 {
     public static class Server
     {
+        
         private static readonly Router Router = new();
         private static readonly SessionManager SessionManager = new();
-        private static Func<ServerError, string> OnError { get; set; } = ErrorHandler;
-        private static readonly int maxSimultaneousConnections = 20;
-        private static readonly Semaphore Sem = new(maxSimultaneousConnections, maxSimultaneousConnections);
+        private static Action<Session, HttpListenerContext>? _onRequest;
+        public static Func<ServerError, string> OnError { get; set; } = ErrorHandler;
+        
+        internal const int ExpirationTimeSeconds = 3600;
+        private const int MaxSimultaneousConnections = 20;
+        private static readonly Semaphore Sem = new(MaxSimultaneousConnections, MaxSimultaneousConnections);
 
         public static void Start()
         {
-            Server.AddRoute(new Route(Verbs.POST, "/demo/redirect", RedirectMe));
+            // Never expire, always authorize
+            Server._onRequest = (session, context) =>
+            {
+                session.Authorized = true;
+                session.UpdateLastConnectionTime();
+            };
             
+            Server.AddRoute(new Route(Verbs.POST, "/demo/redirect", new AuthenticatedExpirableRouteHandler(RedirectMe)));
+
             var localIPs = GetLocalHostIPs();
             var listener = InitializeListener(localIPs);
             Start(listener);
@@ -71,8 +82,9 @@ namespace BYO.WebServer
             try
             {
                 Session session = SessionManager.GetSession(context.Request.RemoteEndPoint);
-                response = HttpRequestProcessor.ProcessRequest(Router, context.Request);
+                response = HttpRequestProcessor.ProcessRequest(Router, context.Request, session);
                 session.UpdateLastConnectionTime();
+                _onRequest?.Invoke(session, context);
 
                 if (response.Error != ServerError.Ok)
                 {
@@ -82,11 +94,10 @@ namespace BYO.WebServer
             catch (Exception ex)
             {
                 ConsoleHelper.ConsoleWriteException(ex);
-                response = new ResponsePacket() { Redirect = OnError(ServerError.ServerError) };
+                response = new ResponsePacket() {Redirect = OnError(ServerError.ServerError)};
             }
 
             Respond(context.Request, context.Response, response);
-
         }
 
         private static void Respond(HttpListenerRequest request, HttpListenerResponse response, ResponsePacket resp)
@@ -97,27 +108,27 @@ namespace BYO.WebServer
                 response.ContentLength64 = resp.Data.Length;
                 response.OutputStream.Write(resp.Data, 0, resp.Data.Length);
                 response.ContentEncoding = resp.Encoding;
-                response.StatusCode = (int)HttpStatusCode.OK;
+                response.StatusCode = (int) HttpStatusCode.OK;
             }
             else
             {
-                response.StatusCode = (int)HttpStatusCode.Redirect;
+                response.StatusCode = (int) HttpStatusCode.Redirect;
                 response.Redirect($"http://{request.UserHostAddress}{resp.Redirect}");
             }
 
             response.OutputStream.Close();
         }
-        
+
         private static void AddRoute(Route route)
         {
             Router.Routes.Add(route);
         }
-        
-        private static string RedirectMe(Dictionary<string, string>? parms)
+
+        private static string RedirectMe(Session session, Dictionary<string, string>? parms)
         {
             return "/demo/clicked";
         }
-        
+
         private static string ErrorHandler(ServerError error)
         {
             string output = string.Empty;
